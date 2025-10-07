@@ -12,6 +12,11 @@ import Auth from './pages/Auth';
 import NotFound from './pages/NotFound';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import LevelPage from './pages/LevelPage';
+
+
+import ModulePage from './pages/ModulePage';
+import LessonPage from './pages/LessonPage';
 
 function App() {
   return (
@@ -26,6 +31,9 @@ function App() {
         }>
           <Route index element={<Dashboard />} />
           <Route path="learn" element={<Learn />} />
+          <Route path="learn/:moduleId" element={<ModulePage />} />
+          <Route path="learn/:moduleId/lesson/:lessonId" element={<LessonPage />} />
+          <Route path="/learn/:moduleId/lesson/:lessonId/level/:levelId" element={<LevelPage />} />
           <Route path="visualizer" element={<AlgorithmVisualizer />} />
           <Route path="projects" element={<ProjectLabs />} />
           <Route path="duel" element={<CodeDuel />} />
