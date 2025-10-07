@@ -10,11 +10,8 @@ const Header = () => {
 
   const handleSignOut = async () => {
     try {
-      const { success } = await signOut();
-      if (success) {
-        // Redirect to login page after sign out
-        navigate('/auth');
-      }
+      await signOut();
+      // Navigation is handled in the signOut function from AuthContext
     } catch (error) {
       console.error('Error signing out:', error);
       // Force redirect to login page even if error occurs

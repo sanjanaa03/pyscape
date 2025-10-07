@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const SortingVisualizer = () => {
   const [array, setArray] = useState([]);
@@ -9,21 +9,21 @@ const SortingVisualizer = () => {
   const [size, setSize] = useState(30);
 
   // Generate a new random array
-  const resetArray = () => {
+  const resetArray = useCallback(() => {
     if (sorting) return;
     setCompleted(false);
-    
+
     const newArray = [];
     for (let i = 0; i < size; i++) {
       newArray.push(randomIntFromInterval(5, 80));
     }
     setArray(newArray);
-  };
+  }, [sorting, size]);
 
   // Initialize array on component mount or size change
   useEffect(() => {
     resetArray();
-  }, [size]);
+  }, [resetArray]);
 
   // Helper function to get random numbers
   const randomIntFromInterval = (min, max) => {
