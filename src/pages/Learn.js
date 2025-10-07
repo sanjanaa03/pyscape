@@ -1,7 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 const Learn = () => {
+  const navigate = useNavigate();
   const modules = [
     {
       id: 1,
@@ -53,8 +55,13 @@ const Learn = () => {
     }
   ];
 
+  const handleStartLearning = (moduleId) => {
+    navigate(`/learn/${moduleId}`);
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Header */}
       <motion.div
         className="mb-6"
         initial={{ opacity: 0, y: 20 }}
@@ -125,7 +132,8 @@ const Learn = () => {
               </div>
               
               {module.status === 'available' ? (
-                <button className="btn-primary w-full">Start Learning</button>
+                <button className="btn-primary w-full"
+                onClick={() => handleStartLearning(module.id)}>Start Learning</button>
               ) : (
                 <button className="w-full py-2 px-4 rounded-md bg-dark-lightest text-gray-500 cursor-not-allowed" disabled>
                   Locked
