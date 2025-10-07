@@ -13,8 +13,6 @@ import NotFound from './pages/NotFound';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import LevelPage from './pages/LevelPage';
-
-
 import ModulePage from './pages/ModulePage';
 import LessonPage from './pages/LessonPage';
 
