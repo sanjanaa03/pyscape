@@ -125,8 +125,40 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Refresh user profile data from the database
+  const refreshProfile = async () => {
+    try {
+      if (!user?.id) return { success: false, error: 'No user logged in' };
+      
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+        
+      if (error) return { success: false, error: error.message };
+      if (!profile) return { success: false, error: 'Profile not found' };
+      
+      const updatedUser = { ...user, ...profile };
+      setUser(updatedUser);
+      
+      return { success: true, user: updatedUser };
+    } catch (err) {
+      console.error('Profile refresh failed', err);
+      return { success: false, error: 'Failed to refresh profile' };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      setUser, 
+      loading, 
+      signUp, 
+      signIn, 
+      signOut,
+      refreshProfile 
+    }}>
       {children}
     </AuthContext.Provider>
   );

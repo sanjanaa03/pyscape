@@ -1,0 +1,264 @@
+{
+  "modules": [
+    {
+      "id": 1,
+      "title": "Python Fundamentals",
+      "description": "Learn the basics of Python programming language including variables, data types, control flow, functions, and more.",
+      "difficulty": "beginner",
+      "prerequisites": [],
+      "estimated_hours": 8,
+      "topics": ["python", "programming", "learn-programming"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Python Basics",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Variables and Data Types",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Control Flow",
+          "type": "code"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Data Science with Pandas",
+      "description": "Master data manipulation and analysis with Pandas, a powerful Python library for working with structured data.",
+      "difficulty": "intermediate",
+      "prerequisites": [1],
+      "estimated_hours": 12,
+      "topics": ["data-science", "pandas", "data-analytics"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Introduction to Pandas",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Data Frames and Series",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Data Cleaning",
+          "type": "code"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Machine Learning Basics",
+      "description": "Introduction to machine learning concepts and algorithms including supervised and unsupervised learning.",
+      "difficulty": "intermediate",
+      "prerequisites": [1, 2],
+      "estimated_hours": 15,
+      "topics": ["machine-learning", "supervised-ml", "unsupervised-ml"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Introduction to ML",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Linear Regression",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Classification",
+          "type": "quiz"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Neural Networks & Deep Learning",
+      "description": "Build and train neural networks for various applications using modern deep learning techniques.",
+      "difficulty": "advanced",
+      "prerequisites": [1, 3],
+      "estimated_hours": 18,
+      "topics": ["deep-learning", "neural-networks", "cnn", "rnn"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Neural Network Fundamentals",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Building Your First Neural Network",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Convolutional Neural Networks",
+          "type": "lab"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Natural Language Processing",
+      "description": "Process and analyze text data using NLP techniques and transformer models.",
+      "difficulty": "advanced",
+      "prerequisites": [1, 4],
+      "estimated_hours": 14,
+      "topics": ["nlp", "text-preprocessing", "transformers", "sentiment-analysis"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Text Processing Basics",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Sentiment Analysis",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Building a Text Classifier",
+          "type": "lab"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Computer Vision",
+      "description": "Learn computer vision techniques for image processing, object detection, and recognition.",
+      "difficulty": "advanced",
+      "prerequisites": [1, 4],
+      "estimated_hours": 16,
+      "topics": ["computer-vision", "image-processing", "object-detection", "opencv"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Image Processing Fundamentals",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Object Detection",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Building an Image Classifier",
+          "type": "lab"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Data Visualization",
+      "description": "Create effective data visualizations using Python libraries like Matplotlib, Seaborn, and Plotly.",
+      "difficulty": "intermediate",
+      "prerequisites": [1, 2],
+      "estimated_hours": 10,
+      "topics": ["data-visualization", "matplotlib", "seaborn", "plotly"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Visualization Principles",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Creating Basic Charts",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Interactive Visualizations",
+          "type": "lab"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "MLOps Fundamentals",
+      "description": "Learn how to deploy, monitor, and maintain machine learning models in production.",
+      "difficulty": "advanced",
+      "prerequisites": [1, 3],
+      "estimated_hours": 12,
+      "topics": ["mlops", "model-deployment", "model-monitoring", "data-pipelines"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "MLOps Introduction",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Model Deployment",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Monitoring and Maintenance",
+          "type": "lab"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Web Development with Python",
+      "description": "Build web applications using Python frameworks like Flask and Django.",
+      "difficulty": "intermediate",
+      "prerequisites": [1],
+      "estimated_hours": 14,
+      "topics": ["python", "webdev", "backend", "fullstack"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Web Development Basics",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Building a Flask API",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Full Stack Integration",
+          "type": "lab"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Data Engineering Fundamentals",
+      "description": "Learn data engineering concepts including ETL processes, data warehousing, and big data technologies.",
+      "difficulty": "advanced",
+      "prerequisites": [1, 2],
+      "estimated_hours": 16,
+      "topics": ["bigdata", "data-pipelines", "sql", "data-science"],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Data Engineering Concepts",
+          "type": "read"
+        },
+        {
+          "id": 2,
+          "title": "Building ETL Pipelines",
+          "type": "code"
+        },
+        {
+          "id": 3,
+          "title": "Working with Big Data",
+          "type": "lab"
+        }
+      ]
+    }
+  ]
+}

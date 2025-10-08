@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import supabase from '../utils/supabaseClient';
+import { RoadmapGenerator } from '../utils/roadmapGenerator';
 
 const TopicSelection = () => {
   const { user, setUser } = useAuth();
@@ -290,7 +291,9 @@ const TopicSelection = () => {
     setLoading(true);
     try {
       const topicsArray = Array.from(selectedTopics);
-      const { error } = await supabase
+      
+      // 1. Update profile with selected topics
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
           onboarding_completed: true,
@@ -299,14 +302,43 @@ const TopicSelection = () => {
         })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
+      // 2. Log event for analytics
+      const { error: eventError } = await supabase
+        .from('events')
+        .insert({
+          user_id: user.id,
+          type: 'onboarding.topics_selected',
+          meta: { 
+            selected_topics: topicsArray,
+            count: topicsArray.length
+          },
+          ts: new Date().toISOString()
+        })
+        .single();
+      
+      if (eventError) {
+        console.warn('Failed to log topic selection event:', eventError);
+        // Non-critical error, continue execution
+      }
+      
+      // 3. Generate a personalized roadmap based on selected topics
+      try {
+        await generateRoadmap(user.id, topicsArray);
+      } catch (roadmapError) {
+        console.warn('Failed to generate roadmap:', roadmapError);
+        // Non-critical error, continue execution
+      }
+
+      // 4. Update the user context (quick local update for UI response)
       setUser(prev => ({ 
         ...prev, 
         onboarding_completed: true,
         selected_topics: topicsArray
       }));
-
+      
+      // 5. Navigate to the dashboard/roadmap view
       navigate('/app');
     } catch (err) {
       console.error('Error saving topics:', err);
@@ -315,10 +347,60 @@ const TopicSelection = () => {
       setLoading(false);
     }
   };
+  
+  // Function to generate a personalized roadmap based on selected topics
+  const generateRoadmap = async (userId, selectedTopics) => {
+    try {
+      // Use the RoadmapGenerator utility
+      const roadmap = await RoadmapGenerator.generateRoadmap(
+        userId, 
+        selectedTopics,
+        'beginner' // Default experience level, could be determined from a quiz
+      );
+      
+      return roadmap;
+    } catch (error) {
+      console.error('Failed to generate roadmap:', error);
+      
+      // Fallback: create a minimal roadmap if the generator fails
+      const fallbackRoadmap = {
+        userId,
+        modules: [
+          // Default first module for all users (Python basics)
+          {
+            module_id: 1,
+            title: "Python Fundamentals",
+            rank: 1,
+            reason: "Core requirement for all learning paths",
+            difficulty: "beginner",
+            estimated_hours: 8
+          }
+        ],
+        generated_at: new Date().toISOString(),
+        selected_topics: selectedTopics,
+        algorithm_version: "fallback-1.0"
+      };
+      
+      try {
+        // Save fallback roadmap
+        await supabase
+          .from('profiles')
+          .update({
+            recommendations: fallbackRoadmap
+          })
+          .eq('id', userId);
+      } catch (e) {
+        console.error('Failed to save fallback roadmap:', e);
+      }
+      
+      return fallbackRoadmap;
+    }
+  };
 
   const handleSkip = async () => {
     setLoading(true);
     try {
+      // 1. Mark onboarding as completed
       const { error } = await supabase
         .from('profiles')
         .update({ 
@@ -328,12 +410,33 @@ const TopicSelection = () => {
         .eq('id', user.id);
 
       if (error) throw error;
+      
+      // 2. Log skip event
+      await supabase
+        .from('events')
+        .insert({
+          user_id: user.id,
+          type: 'onboarding.topics_skipped',
+          meta: { action: 'skip' },
+          ts: new Date().toISOString()
+        });
+      
+      // 3. Generate default roadmap (general learning path)
+      try {
+        await generateRoadmap(user.id, ['python']); // Default topic
+      } catch (roadmapError) {
+        console.warn('Failed to generate default roadmap:', roadmapError);
+      }
 
+      // 4. Update user context
       setUser(prev => ({ ...prev, onboarding_completed: true }));
+      
+      // 5. Navigate to app
       navigate('/app');
     } catch (err) {
       console.error('Error skipping onboarding:', err);
-      navigate('/app'); // Navigate anyway
+      // Navigate anyway - don't block user
+      navigate('/app');
     } finally {
       setLoading(false);
     }

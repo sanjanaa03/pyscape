@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import UserRoadmap from '../components/dashboard/UserRoadmap';
 
 // Import components if they exist, otherwise use fallbacks
 let TrendingNews, ProjectLabPreview, MLSandboxPreview, CodeDuelPreview;
@@ -24,6 +25,16 @@ const FallbackComponent = ({ title, description }) => (
 const Dashboard = () => {
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Personal Roadmap - Full Width */}
+      <motion.div
+        className="mb-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <UserRoadmap />
+      </motion.div>
+      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <motion.div 
           className="lg:col-span-2"
