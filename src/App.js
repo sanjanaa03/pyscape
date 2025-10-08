@@ -22,6 +22,11 @@ import LessonPage from './pages/LessonPage';
 import LevelPage from './pages/LevelPage';
 
 function App() {
+  console.log('Environment Variables Check:');
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  console.log('REACT_APP_SUPABASE_URL exists:', Boolean(process.env.REACT_APP_SUPABASE_URL));
+  console.log('REACT_APP_SUPABASE_ANON_KEY exists:', Boolean(process.env.REACT_APP_SUPABASE_ANON_KEY));
+  
   return (
     <AuthProvider>
       <Routes>
@@ -64,7 +69,7 @@ function App() {
           <Route path="learn" element={<Learn />} />
           <Route path="learn/:moduleId" element={<ModulePage />} />
           <Route path="learn/:moduleId/lesson/:lessonId" element={<LessonPage />} />
-          <Route path="/learn/:moduleId/lesson/:lessonId/level/:levelId" element={<LevelPage />} />
+          <Route path="learn/:moduleId/lesson/:lessonId/level/:levelId" element={<LevelPage />} />
           <Route path="visualizer" element={<AlgorithmVisualizer />} />
           <Route path="projects" element={<ProjectLabs />} />
           <Route path="duel" element={<CodeDuel />} />
@@ -74,9 +79,6 @@ function App() {
           <Route path="all-news" element={<AllNews />} />
         </Route>
 
-        {/* Test page for debugging */}
-        <Route path="/test" element={<TestPage />} />
-        
         {/* Redirects to /app/dashboard instead of 404 for logged-in users */}
         <Route path="/dashboard" element={<Navigate to="/app" replace />} />
 
