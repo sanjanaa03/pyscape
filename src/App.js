@@ -20,9 +20,6 @@ import AllNews from './pages/AllNews';
 import ModulePage from './pages/ModulePage';
 import LessonPage from './pages/LessonPage';
 import LevelPage from './pages/LevelPage';
-import TestPage from './pages/TestPage';
-
-
 
 function App() {
   return (
