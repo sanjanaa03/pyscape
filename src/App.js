@@ -26,7 +26,7 @@ function App() {
   console.log('NODE_ENV:', process.env.NODE_ENV);
   console.log('REACT_APP_SUPABASE_URL exists:', Boolean(process.env.REACT_APP_SUPABASE_URL));
   console.log('REACT_APP_SUPABASE_ANON_KEY exists:', Boolean(process.env.REACT_APP_SUPABASE_ANON_KEY));
-  
+  console.log('REACT_APP_RAPIDAPI_KEY exists:', Boolean(process.env.REACT_APP_RAPIDAPI_KEY));
   return (
     <AuthProvider>
       <Routes>
@@ -52,6 +52,40 @@ function App() {
           element={
             <ProtectedRoute>
               <TopicSelection />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Top-level Learn routes (mirror /app/learn/*) so /learn/:moduleId works */}
+        <Route
+          path="/learn"
+          element={
+            <ProtectedRoute>
+              <Learn />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/learn/:moduleId"
+          element={
+            <ProtectedRoute>
+              <ModulePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/learn/:moduleId/lesson/:lessonId"
+          element={
+            <ProtectedRoute>
+              <LessonPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/learn/:moduleId/lesson/:lessonId/level/:levelId"
+          element={
+            <ProtectedRoute>
+              <LevelPage />
             </ProtectedRoute>
           }
         />
