@@ -7,7 +7,7 @@ Pyscape is a web-based adaptive learning platform focused on Python, Artificial 
 1. **Adaptive Learning Platform**
    - Personalized learning paths
    - Gamified learning (XP, badges, levels)
-   - Knowledge assessment quiz
+   - Reddit-style topic selection
 
 2. **Algorithm Visualizer**
    - Interactive step-by-step algorithm visualization
@@ -18,9 +18,15 @@ Pyscape is a web-based adaptive learning platform focused on Python, Artificial 
    - Performance metrics and visualization
    - Portfolio integration
 
-4. **Real-time Learning Engagement**
+4. **Real-time Code Duels** ⚔️
+   - Live 1v1 coding battles via WebSockets
+   - Matchmaking system by difficulty and language
+   - Real-time code execution with Judge0 API
+   - XP rewards and leaderboard rankings
+   - In-duel chat and live progress tracking
+
+5. **Real-time Learning Engagement**
    - AI news and updates dashboard
-   - Real-time coding duels
    - **ML Sandbox with Multi-Language Code Execution**
      - JavaScript (client-side execution)
      - Python, Java, C, C++ (server-side execution via Judge0 API)
@@ -28,7 +34,7 @@ Pyscape is a web-based adaptive learning platform focused on Python, Artificial 
      - Interactive input/output handling
      - Syntax highlighting and error reporting
 
-5. **Portfolio View**
+6. **Portfolio View**
    - Project showcasing
    - Performance metrics
    - Exportable as PDF
@@ -173,7 +179,16 @@ The ML Sandbox provides a comprehensive code execution environment supporting mu
    npm start
    ```
 
-6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+6. **Start the Code Duel WebSocket Server** (for real-time duels):
+   ```bash
+   cd backend
+   npm install
+   npm run dev:duel
+   ```
+   
+   The WebSocket server will run on `ws://localhost:8080`
+
+7. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Database Schema
 
@@ -239,6 +254,32 @@ npm run build
 This creates an optimized build in the `build` folder that can be deployed to any static hosting service.
 
 ## Troubleshooting
+
+### Code Duel Issues
+
+**Problem**: "Cannot connect to WebSocket server" error
+
+**Solution**:
+1. Ensure the Code Duel WebSocket server is running: `cd backend && npm run dev:duel`
+2. Verify it's running on port 8080 (check terminal output)
+3. Check your firewall isn't blocking WebSocket connections
+4. Ensure your backend `.env` file has the correct Supabase and RapidAPI keys
+
+**Problem**: "Code execution failed" during duels
+
+**Solution**:
+- Verify your RapidAPI key is valid and has Judge0 API access
+- Check your RapidAPI usage limits haven't been exceeded
+- Ensure the Judge0 API subscription is active on RapidAPI
+- Check browser console and server logs for detailed error messages
+
+**Problem**: Can't find an opponent / stuck in queue
+
+**Solution**:
+- The matchmaking system requires at least 2 players in queue
+- For testing, open the app in multiple browser windows/tabs
+- Check that both players selected the same difficulty and language
+- If queue gets large (4+), system will match even with different preferences
 
 ### Code Execution Issues
 
