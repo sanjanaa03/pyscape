@@ -6,14 +6,20 @@ import { BrowserRouter } from 'react-router-dom';
 
 // Suppress ResizeObserver errors (benign Monaco Editor issue)
 const errorHandler = (event) => {
-  const message = event.message || event.error?.message || '';
-  if (message.includes('ResizeObserver')) {
+  const message = event.message || event.error?.message || event.reason?.message || '';
+  
+  // Check if it's a ResizeObserver error
+  if (message.includes('ResizeObserver loop') || 
+      message.includes('ResizeObserver')) {
     event.stopImmediatePropagation();
     event.preventDefault();
-    return;
+    return true;
   }
 };
+
+// Handle both error and unhandledrejection events
 window.addEventListener('error', errorHandler);
+window.addEventListener('unhandledrejection', errorHandler);
 
 // Create root and render app
 const root = ReactDOM.createRoot(document.getElementById('root'));

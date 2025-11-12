@@ -32,12 +32,19 @@ const CodeDuel = () => {
   const [selectedDifficulty, setSelectedDifficulty] = useState('beginner');
   const [selectedLanguage, setSelectedLanguage] = useState('python');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState('');
   const [stdin, setStdin] = useState('');
+  const [hasCompleted, setHasCompleted] = useState(false);
+  const [opponentCompleted, setOpponentCompleted] = useState(false);
+  // eslint-disable-next-line no-unused-vars
+  const [lastTestResults, setLastTestResults] = useState(null); // For future replay feature
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
 
   const wsRef = useRef(null);
   const timerRef = useRef(null);
   const lastRequestTime = useRef(0);
+  const chatEndRef = useRef(null);
 
   const addNotification = useCallback((text) => {
     setChatMessages(prev => [...prev, { type: 'system', text, timestamp: Date.now() }]);
@@ -51,6 +58,10 @@ const CodeDuel = () => {
       text: message.message,
       timestamp: message.timestamp
     }]);
+    // Auto-scroll to bottom
+    setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   }, []);
 
   const handleDuelStart = useCallback((message) => {
@@ -65,6 +76,10 @@ const CodeDuel = () => {
     setTimeRemaining(message.timeLimit);
     setChatMessages([]);
     setSubmissions([]);
+    setHasCompleted(false);
+    setOpponentCompleted(false);
+    setOutput('');
+    setLastTestResults(null);
 
     const startTime = Date.now();
     timerRef.current = setInterval(() => {
@@ -90,9 +105,11 @@ const CodeDuel = () => {
   }, [addNotification]);
 
   const handleDuelEnd = useCallback((message) => {
+    console.log('🏁 DUEL_END received, transitioning to results:', message);
     clearInterval(timerRef.current);
     setResults(message.results);
     setGameState('RESULTS');
+    console.log('✅ State changed to RESULTS');
   }, []);
 
   const handleDuelForfeited = useCallback((message) => {
@@ -131,13 +148,24 @@ const CodeDuel = () => {
         handleSubmissionResult(message.result);
         break;
       case 'OPPONENT_COMPLETED':
+        console.log('Opponent completed:', message);
+        setOpponentCompleted(true);
         addNotification(`${message.nickname} completed the problem!`);
         break;
       case 'DUEL_END':
+        console.log('Duel ended:', message);
         handleDuelEnd(message);
         break;
       case 'DUEL_FORFEITED':
         handleDuelForfeited(message);
+        break;
+      case 'OPPONENT_DISCONNECTED':
+        console.log('Opponent disconnected:', message);
+        addNotification('⚠️ Opponent disconnected, waiting for reconnection...', 'warning');
+        break;
+      case 'OPPONENT_RECONNECTED':
+        console.log('Opponent reconnected:', message);
+        addNotification('✅ Opponent reconnected', 'success');
         break;
       case 'CHAT_MESSAGE':
         addChatMessage(message);
@@ -231,7 +259,7 @@ const CodeDuel = () => {
   const waitForRateLimit = async () => {
     const now = Date.now();
     const timeSinceLastRequest = now - lastRequestTime.current;
-    const minDelay = 4000; // 4 seconds between requests (more aggressive for free tier)
+    const minDelay = 8000; // 8 seconds between requests (very aggressive for free tier)
     
     if (timeSinceLastRequest < minDelay) {
       const waitTime = minDelay - timeSinceLastRequest;
@@ -242,16 +270,16 @@ const CodeDuel = () => {
     lastRequestTime.current = Date.now();
   };
 
-  const submitCode = async () => {
-    if (!code.trim() || isSubmitting) return;
+  // Shared function to execute code against test cases
+  const executeCode = async (isSubmission = false) => {
+    if (!code.trim()) return null;
     
     if (!duel || !duel.id) {
       addNotification('❌ Error: No active duel found');
-      return;
+      return null;
     }
     
-    setIsSubmitting(true);
-    setOutput('🚀 Executing code on server...\n\n');
+    setOutput('🚀 Executing code...\n⏱️ Note: Tests run with 8-second delays to avoid rate limits\n\n');
     
     // Use environment variable for RapidAPI key
     const API_KEY = process.env.REACT_APP_RAPIDAPI_KEY || 'YOUR_RAPIDAPI_KEY_HERE';
@@ -385,7 +413,7 @@ const CodeDuel = () => {
         
         let submissionResponse;
         let retryCount = 0;
-        const maxRetries = 5; // More retries for free tier
+        const maxRetries = 3; // Reduce retries - if hitting rate limit, better to skip test
         
         // Retry logic for rate limiting
         while (retryCount < maxRetries) {
@@ -396,13 +424,13 @@ const CodeDuel = () => {
             if (error.response && error.response.status === 429) {
               retryCount++;
               if (retryCount < maxRetries) {
-                const backoffTime = 5000 * retryCount; // Longer exponential backoff: 5s, 10s, 15s, 20s
+                const backoffTime = 10000 * retryCount; // Very long backoff: 10s, 20s, 30s
                 const retryMsg = `\n⚠️ Rate limit hit, waiting ${backoffTime/1000}s before retry ${retryCount}/${maxRetries}...`;
                 setOutput(prev => prev + retryMsg);
                 await new Promise(resolve => setTimeout(resolve, backoffTime));
               } else {
                 // Don't throw error, just mark test as failed and continue
-                setOutput(prev => prev + `\n❌ Rate limit exceeded after ${maxRetries} retries. Marking test as failed.`);
+                setOutput(prev => prev + `\n❌ Rate limit exceeded after ${maxRetries} retries. Skipping this test.`);
                 break;
               }
             } else {
@@ -492,38 +520,107 @@ const CodeDuel = () => {
       // Add to submissions
       setSubmissions(prev => [...prev, submissionResult]);
       
-      if (allPassed) {
-        setOutput(`✅ All ${totalTests} tests passed!\n\nScore: ${score}/100\n\n🎉 Solution accepted! Waiting for opponent...`);
-        addNotification('✅ All tests passed! Waiting for opponent...');
-        
-        // Send completion to WebSocket server
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'DUEL_COMPLETE',
-            duelId: duel.id,
-            score: score,
-            completedAt: Date.now()
-          }));
-        }
-      } else {
-        let outputText = `❌ ${passedTests}/${totalTests} tests passed\n\nScore: ${score}/100\n\n`;
-        outputText += 'Failed tests:\n';
-        testResults.filter(t => !t.passed).forEach(t => {
-          outputText += `\n${t.name}:\n`;
-          outputText += `  Expected: ${t.expectedOutput}\n`;
-          outputText += `  Got: ${t.actualOutput}\n`;
-          if (t.error) outputText += `  Error: ${t.error}\n`;
-        });
-        setOutput(outputText);
-        addNotification(`❌ ${passedTests}/${totalTests} tests passed - Keep trying!`);
-      }
+      // Store test results
+      const result = {
+        passedTests,
+        totalTests,
+        score,
+        allPassed,
+        testResults
+      };
+      
+      return result;
       
     } catch (error) {
       console.error('Code execution error:', error);
       setOutput(`❌ Execution error: ${error.message}`);
-      addNotification('❌ Code execution failed');
-    } finally {
-      setIsSubmitting(false);
+      return null;
+    }
+  };
+
+  // Run code to see test results (no submission)
+  const runCode = async () => {
+    if (!code.trim() || isRunning || isSubmitting) return;
+    
+    setIsRunning(true);
+    const result = await executeCode(false);
+    setIsRunning(false);
+    
+    if (!result) return;
+    
+    const { passedTests, totalTests, score, allPassed, testResults } = result;
+    setLastTestResults(result);
+    
+    if (allPassed) {
+      setOutput(`✅ All ${totalTests} tests passed!\n\nScore: ${score}/100\n\n💡 Great! Now click "Submit Solution" to complete the duel.`);
+    } else {
+      let outputText = `❌ ${passedTests}/${totalTests} tests passed\n\nScore: ${score}/100\n\n`;
+      outputText += 'Failed tests:\n';
+      testResults.filter(t => !t.passed).forEach(t => {
+        outputText += `\n${t.name}:\n`;
+        outputText += `  Expected: ${t.expectedOutput}\n`;
+        outputText += `  Got: ${t.actualOutput}\n`;
+        if (t.error) outputText += `  Error: ${t.error}\n`;
+      });
+      setOutput(outputText);
+    }
+  };
+
+  // Submit solution to complete the duel
+  const submitCode = async () => {
+    if (!code.trim() || isSubmitting || hasCompleted) return;
+    
+    setIsSubmitting(true);
+    const result = await executeCode(true);
+    setIsSubmitting(false);
+    
+    if (!result) return;
+    
+    const { passedTests, totalTests, score, allPassed, testResults } = result;
+    
+    // Create submission result
+    const submissionResult = {
+      timestamp: Date.now(),
+      status: allPassed ? 'Accepted' : `${passedTests}/${totalTests} tests passed`,
+      passed: allPassed,
+      score: score,
+      runtime: testResults[0]?.time || 0,
+      testResults: testResults
+    };
+    
+    // Add to submissions
+    setSubmissions(prev => [...prev, submissionResult]);
+    
+    if (allPassed) {
+      console.log('Submitting solution. Opponent completed:', opponentCompleted);
+      setOutput(`✅ All ${totalTests} tests passed!\n\nScore: ${score}/100\n\n🎉 Solution submitted! ${opponentCompleted ? 'Calculating results...' : 'Waiting for opponent...'}`);
+      addNotification('✅ Solution submitted successfully!');
+      setHasCompleted(true);
+      
+      // Send completion to WebSocket server
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('Sending DUEL_COMPLETE to server');
+        ws.send(JSON.stringify({
+          type: 'DUEL_COMPLETE',
+          duelId: duel.id,
+          score: score,
+          completedAt: Date.now()
+        }));
+      } else {
+        console.error('WebSocket not connected!');
+      }
+    } else {
+      let outputText = `❌ ${passedTests}/${totalTests} tests passed\n\nScore: ${score}/100\n\n`;
+      outputText += '⚠️ You must pass all tests to submit your solution.\n\n';
+      outputText += 'Failed tests:\n';
+      testResults.filter(t => !t.passed).forEach(t => {
+        outputText += `\n${t.name}:\n`;
+        outputText += `  Expected: ${t.expectedOutput}\n`;
+        outputText += `  Got: ${t.actualOutput}\n`;
+        if (t.error) outputText += `  Error: ${t.error}\n`;
+      });
+      setOutput(outputText);
+      addNotification(`❌ Cannot submit: ${passedTests}/${totalTests} tests passed - All tests must pass!`);
     }
   };
 
@@ -536,11 +633,24 @@ const CodeDuel = () => {
   };
 
   const sendChatMessage = () => {
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
+    
+    const message = chatInput.trim();
+    
+    // Add message locally immediately for better UX
+    addChatMessage({
+      userId: user?.id,
+      nickname: user?.email?.split('@')[0] || 'You',
+      message: message,
+      timestamp: Date.now()
+    });
+    
+    // Send to server
     ws.send(JSON.stringify({
       type: 'CHAT_MESSAGE',
-      message: chatInput
+      message: message
     }));
+    
     setChatInput('');
   };
 
@@ -694,32 +804,86 @@ const CodeDuel = () => {
               <h3 className="text-sm font-semibold mb-2 text-gray-300">Output & Results</h3>
               <div className="flex-1 rounded-lg overflow-auto border border-gray-700 bg-dark p-4">
                 <pre className="text-sm whitespace-pre-wrap font-mono text-gray-300">
-                  {output || `💡 Click "Submit Solution" to run your code against test cases...\n\n📊 Results will appear here in real-time\n\n⚡ Your code will be tested against ${((duel?.problem?.tests_public?.length || 0) + (duel?.problem?.tests_hidden?.length || 0)) || ((duel?.problem?.testsPublic?.length || 0) + (duel?.problem?.testsHidden?.length || 0))} test cases`}
+                  {output || `💡 Use "Run Code" to test your solution\n💾 Use "Submit Solution" when all tests pass\n\n📊 Results will appear here in real-time\n\n⚡ Your code will be tested against ${((duel?.problem?.tests_public?.length || 0) + (duel?.problem?.tests_hidden?.length || 0)) || ((duel?.problem?.testsPublic?.length || 0) + (duel?.problem?.testsHidden?.length || 0))} test cases`}
                 </pre>
               </div>
             </div>
           </div>
           <div className="bg-dark-lighter p-4 border-t border-gray-700">
-            <button 
-              onClick={submitCode} 
-              disabled={isSubmitting} 
-              className="w-full bg-primary hover:bg-primary-dark disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
-            >
-              {isSubmitting ? 'Running Tests...' : 'Submit Solution'}
-            </button>
+            {hasCompleted ? (
+              <div className="text-center py-3">
+                <p className="text-green-500 font-bold mb-2">✅ Solution Submitted!</p>
+                <p className="text-sm text-gray-400">
+                  {opponentCompleted ? '⏳ Calculating results...' : '⏳ Waiting for opponent to finish...'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={runCode} 
+                  disabled={isRunning || isSubmitting} 
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
+                >
+                  {isRunning ? '⚡ Running...' : '▶️ Run Code'}
+                </button>
+                <button 
+                  onClick={submitCode} 
+                  disabled={isSubmitting || isRunning} 
+                  className="bg-primary hover:bg-primary-dark disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
+                >
+                  {isSubmitting ? '📤 Submitting...' : '✅ Submit Solution'}
+                </button>
+              </div>
+            )}
+            {opponentCompleted && !hasCompleted && (
+              <div className="mt-3 p-3 bg-yellow-900/30 border border-yellow-500/50 rounded-lg text-center">
+                <p className="text-yellow-400 text-sm font-semibold">⚠️ Opponent has finished! Submit your solution to see results.</p>
+              </div>
+            )}
+            {/* Debug button - remove after testing */}
+            {hasCompleted && (
+              <div className="mt-3">
+                <button 
+                  onClick={() => {
+                    console.log('Debug: Current states:', { hasCompleted, opponentCompleted, duelId: duel?.id });
+                    console.log('Debug: WebSocket state:', ws?.readyState);
+                  }}
+                  className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs"
+                >
+                  🐛 Debug: Show States
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        <div className="w-96 bg-dark-lighter border-l border-gray-700 flex flex-col">
-          <div className="p-4 border-b border-gray-700">
-            <h3 className="font-semibold mb-3">Submissions ({submissions.length})</h3>
-            <div className="space-y-2 max-h-64 overflow-auto">
+        <motion.div 
+          className="bg-dark-lighter border-l border-gray-700 flex flex-col relative"
+          animate={{ width: isRightPanelCollapsed ? '48px' : '384px' }}
+          transition={{ duration: 0.3 }}
+        >
+          {/* Collapse/Expand Button */}
+          <button
+            onClick={() => setIsRightPanelCollapsed(!isRightPanelCollapsed)}
+            className="absolute top-4 -left-3 z-10 w-6 h-6 bg-primary hover:bg-primary-dark rounded-full flex items-center justify-center text-xs transition-colors shadow-lg"
+            title={isRightPanelCollapsed ? 'Expand panel' : 'Collapse panel'}
+          >
+            {isRightPanelCollapsed ? '→' : '←'}
+          </button>
+
+          {!isRightPanelCollapsed && (
+            <>
+              <div className="p-4 border-b border-gray-700">
+                <h3 className="font-semibold mb-3">Your Submissions ({submissions.length})</h3>
+                <div className="space-y-2 max-h-64 overflow-auto">
               {submissions.map((sub, idx) => (
                 <div key={idx} className={`p-3 rounded text-sm ${sub.passed ? 'bg-green-900/30 border-l-4 border-green-500' : 'bg-red-900/30 border-l-4 border-red-500'}`}>
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-semibold">{sub.passed ? '✅ Passed' : '❌ ' + sub.status}</span>
                     <span className="text-xs text-gray-400">{sub.runtime}ms</span>
                   </div>
-                  <div className="text-xs text-gray-400">Score: {sub.score}/100</div>
+                  <div className="text-xs text-gray-400">
+                    Score: {sub.score}/100 • {new Date(sub.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
                   {sub.testResults && (
                     <details className="mt-2 text-xs">
                       <summary className="cursor-pointer text-gray-400 hover:text-gray-300">View test results</summary>
@@ -743,21 +907,73 @@ const CodeDuel = () => {
               <h3 className="font-semibold">Chat</h3>
             </div>
             <div className="flex-1 overflow-auto p-4 space-y-2">
+              {chatMessages.length === 0 && (
+                <div className="text-center text-gray-500 text-xs mt-8">
+                  <p>💬 Chat with your opponent</p>
+                  <p className="mt-1">Messages will appear here</p>
+                </div>
+              )}
               {chatMessages.map((msg, idx) => (
                 <div key={idx} className={`text-sm ${msg.type === 'system' ? 'text-center text-gray-400 italic' : ''}`}>
-                  {msg.type === 'chat' && <div className="bg-dark p-2 rounded"><span className="font-semibold text-primary">{msg.nickname}: </span><span>{msg.text}</span></div>}
+                  {msg.type === 'chat' && (
+                    <div className={`${msg.userId === user?.id ? 'flex justify-end' : 'flex justify-start'}`}>
+                      <div className={`max-w-[80%] p-2 rounded-lg ${msg.userId === user?.id ? 'bg-primary/20' : 'bg-dark'}`}>
+                        <div className="font-semibold text-xs text-primary mb-1">{msg.nickname}</div>
+                        <div className="break-words">{msg.text}</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {msg.type === 'system' && <span>{msg.text}</span>}
                 </div>
               ))}
+              <div ref={chatEndRef} />
             </div>
             <div className="p-4 border-t border-gray-700">
               <div className="flex space-x-2">
-                <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()} placeholder="Type a message..." className="flex-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-sm" />
-                <button onClick={sendChatMessage} className="px-4 py-2 bg-primary rounded-lg text-sm">Send</button>
+                <input 
+                  type="text" 
+                  value={chatInput} 
+                  onChange={(e) => setChatInput(e.target.value)} 
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChatMessage();
+                    }
+                  }}
+                  placeholder="Type a message..." 
+                  className="flex-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" 
+                  maxLength={200}
+                />
+                <button 
+                  onClick={sendChatMessage} 
+                  disabled={!chatInput.trim()}
+                  className="px-4 py-2 bg-primary hover:bg-primary-dark disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg text-sm transition"
+                >
+                  Send
+                </button>
               </div>
             </div>
           </div>
-        </div>
+            </>
+          )}
+
+          {/* Collapsed State - Show Icons Only */}
+          {isRightPanelCollapsed && (
+            <div className="flex flex-col items-center py-4 space-y-4">
+              <div className="text-center" title={`${submissions.length} submissions`}>
+                <div className="text-2xl mb-1">📊</div>
+                <div className="text-xs text-gray-400">{submissions.length}</div>
+              </div>
+              <div className="text-center" title={`${chatMessages.length} messages`}>
+                <div className="text-2xl mb-1">💬</div>
+                <div className="text-xs text-gray-400">{chatMessages.length}</div>
+              </div>
+            </div>
+          )}
+        </motion.div>
       </div>
     </div>
   );
