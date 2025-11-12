@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext'; // make sure this path is correct
 
 const Sidebar = () => {
   const { user } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = [
     { to: '/app', icon: '🏠', label: 'Dashboard', exact: true },
@@ -17,16 +18,38 @@ const Sidebar = () => {
   ];
 
   return (
-    <nav className="bg-dark-lighter w-64 min-h-screen p-4 flex flex-col">
+    <motion.nav 
+      className="bg-dark-lighter min-h-screen p-4 flex flex-col relative transition-all duration-300"
+      animate={{ width: isCollapsed ? '80px' : '256px' }}
+      initial={{ width: '256px' }}
+    >
       {/* Logo */}
-      <div className="mb-8">
+      <div className="mb-8 flex items-center justify-between">
         <motion.h1
-          className="text-2xl font-bold text-primary flex items-center"
+          className="text-2xl font-bold text-primary flex items-center overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
         >
-          <span className="text-3xl mr-2">C</span> Pyscape
+          <span 
+            className="text-3xl mr-2 cursor-pointer hover:text-primary-light transition-colors"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            C
+          </span>
+          <AnimatePresence>
+            {!isCollapsed && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                Pyscape
+              </motion.span>
+            )}
+          </AnimatePresence>
         </motion.h1>
       </div>
 
@@ -42,16 +65,28 @@ const Sidebar = () => {
             <NavLink
               to={item.to}
               end={item.exact}
+              title={isCollapsed ? item.label : ''}
               className={({ isActive }) =>
                 `flex items-center p-3 mb-2 rounded-md transition-all ${
                   isActive
                     ? 'bg-primary text-white font-medium'
                     : 'text-gray-400 hover:text-white hover:bg-dark-lightest'
-                }`
+                } ${isCollapsed ? 'justify-center' : ''}`
               }
             >
-              <span className="mr-3 text-xl">{item.icon}</span>
-              <span>{item.label}</span>
+              <span className={`text-xl ${isCollapsed ? '' : 'mr-3'}`}>{item.icon}</span>
+              <AnimatePresence>
+                {!isCollapsed && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {item.label}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </NavLink>
           </motion.div>
         ))}
@@ -61,15 +96,16 @@ const Sidebar = () => {
       <div className="mt-auto pt-4 border-t border-dark-lightest">
         <NavLink
           to="/app/profile"
+          title={isCollapsed ? (user?.full_name || 'User Profile') : ''}
           className={({ isActive }) =>
             `flex items-center p-3 rounded-md transition-all ${
               isActive
                 ? 'bg-primary text-white font-medium'
                 : 'text-gray-400 hover:text-white hover:bg-dark-lightest'
-            }`
+            } ${isCollapsed ? 'justify-center' : ''}`
           }
         >
-          <span className="w-10 h-10 rounded-full overflow-hidden mr-2 border-2 border-gray-500 bg-gray-600 flex items-center justify-center">
+          <span className={`w-10 h-10 rounded-full overflow-hidden border-2 border-gray-500 bg-gray-600 flex items-center justify-center ${isCollapsed ? '' : 'mr-2'}`}>
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
@@ -88,13 +124,23 @@ const Sidebar = () => {
               {user?.full_name?.charAt(0)?.toUpperCase() || 'U'}
             </div>
           </span>
-          <div className="flex flex-col">
-            <span>{user?.full_name || 'User Profile'}</span>
-            <span className="text-xs text-gray-300">{user?.email}</span>
-          </div>
+          <AnimatePresence>
+            {!isCollapsed && (
+              <motion.div 
+                className="flex flex-col overflow-hidden"
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <span className="whitespace-nowrap">{user?.full_name || 'User Profile'}</span>
+                <span className="text-xs text-gray-300 whitespace-nowrap overflow-hidden text-ellipsis">{user?.email}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </NavLink>
       </div>
-    </nav>
+    </motion.nav>
   );
 };
 
