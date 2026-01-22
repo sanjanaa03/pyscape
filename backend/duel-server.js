@@ -21,6 +21,7 @@ const wss = new WebSocket.Server({ port: 8080 });
 const activeDuels = new Map(); // duelId -> duel session data
 const matchmakingQueue = []; // players waiting for match
 const connectedClients = new Map(); // userId -> WebSocket connection
+const disconnectTimers = new Map(); // userId -> timeout for forfeit grace period (30 seconds)
 
 console.log('🚀 Code Duel WebSocket Server running on ws://localhost:8080');
 
@@ -51,6 +52,10 @@ wss.on('connection', (ws) => {
           await handleCodeSubmission(ws, data);
           break;
         
+        case 'DUEL_COMPLETE':
+          await handleDuelComplete(ws, data);
+          break;
+        
         case 'LEAVE_DUEL':
           await handleLeaveDuel(ws, data);
           break;
@@ -78,8 +83,25 @@ wss.on('connection', (ws) => {
       connectedClients.delete(userId);
       removeFromQueue(userId);
       
-      if (currentDuelId) {
-        handleDisconnectFromDuel(currentDuelId, userId);
+      const duelId = ws._currentDuelId || currentDuelId;
+      if (duelId) {
+        // Set a 30-second grace period before forfeiting
+        console.log(`⏰ Setting 30-second reconnection grace period for user ${userId} in duel ${duelId}`);
+        
+        const timer = setTimeout(() => {
+          console.log(`⏱️ Grace period expired for user ${userId}, forfeiting duel ${duelId}`);
+          handleDisconnectFromDuel(duelId, userId);
+          disconnectTimers.delete(userId);
+        }, 30000); // 30 seconds
+        
+        disconnectTimers.set(userId, timer);
+        
+        // Notify opponent about disconnect (but not forfeit yet)
+        broadcastToDuel(duelId, {
+          type: 'OPPONENT_DISCONNECTED',
+          userId: userId,
+          message: 'Opponent disconnected, waiting for reconnection...'
+        }, userId);
       }
     }
   });
@@ -101,11 +123,56 @@ wss.on('connection', (ws) => {
       userId = user.id;
       connectedClients.set(userId, ws);
       
+      // Check if user has a pending forfeit timer (reconnecting)
+      let reconnectedToDuel = null;
+      if (disconnectTimers.has(userId)) {
+        const timer = disconnectTimers.get(userId);
+        clearTimeout(timer);
+        disconnectTimers.delete(userId);
+        console.log(`✅ User ${userId} reconnected within grace period, forfeit cancelled`);
+        
+        // Find the duel they were in
+        const duel = Array.from(activeDuels.values()).find(d => 
+          d.participants.some(p => p.userId === userId)
+        );
+        
+        if (duel) {
+          reconnectedToDuel = duel;
+          // Restore the duel ID on the new WebSocket connection
+          ws._currentDuelId = duel.id;
+          
+          // Notify opponent about reconnection
+          broadcastToDuel(duel.id, {
+            type: 'OPPONENT_RECONNECTED',
+            userId: userId,
+            message: 'Opponent reconnected'
+          }, userId);
+        }
+      }
+      
       ws.send(JSON.stringify({ 
         type: 'AUTH_SUCCESS', 
         userId: user.id,
         message: 'Connected to Code Duel server' 
       }));
+
+      // If they reconnected to an active duel, send them the duel state
+      if (reconnectedToDuel) {
+        const opponent = reconnectedToDuel.participants.find(p => p.userId !== userId);
+        ws.send(JSON.stringify({
+          type: 'DUEL_START',
+          duel: {
+            id: reconnectedToDuel.id,
+            problem: reconnectedToDuel.problem,
+            opponent: {
+              userId: opponent.userId,
+              nickname: opponent.nickname
+            },
+            startedAt: reconnectedToDuel.startedAt
+          }
+        }));
+        console.log(`📡 Sent duel state to reconnected user ${userId}`);
+      }
 
       console.log(`User ${userId} authenticated`);
     } catch (error) {
@@ -168,12 +235,26 @@ wss.on('connection', (ws) => {
 
   // Submit code during duel
   async function handleCodeSubmission(ws, data) {
-    if (!currentDuelId) {
+    let duelId = ws._currentDuelId || currentDuelId;
+    
+    // Fallback: Search for user's active duel if not tracked on ws object
+    if (!duelId && userId) {
+      const duel = Array.from(activeDuels.values()).find(d => 
+        d.participants.some(p => p.userId === userId)
+      );
+      if (duel) {
+        duelId = duel.id;
+        ws._currentDuelId = duelId; // Store it for next time
+        console.log(`🔧 Recovered duel ID ${duelId} for user ${userId}`);
+      }
+    }
+    
+    if (!duelId) {
       ws.send(JSON.stringify({ type: 'ERROR', message: 'Not in a duel' }));
       return;
     }
 
-    const duel = activeDuels.get(currentDuelId);
+    const duel = activeDuels.get(duelId);
     if (!duel) {
       ws.send(JSON.stringify({ type: 'ERROR', message: 'Duel not found' }));
       return;
@@ -205,10 +286,10 @@ wss.on('connection', (ws) => {
           // Check if duel is complete
           const allComplete = duel.participants.every(p => p.completedAt);
           if (allComplete) {
-            await completeDuel(currentDuelId);
+            await completeDuel(duelId);
           } else {
             // Notify other participant
-            broadcastToDuel(currentDuelId, {
+            broadcastToDuel(duelId, {
               type: 'OPPONENT_COMPLETED',
               userId,
               nickname: participant.nickname,
@@ -234,7 +315,7 @@ wss.on('connection', (ws) => {
       }));
 
       // Broadcast updated duel state
-      broadcastDuelState(currentDuelId);
+      broadcastDuelState(duelId);
 
     } catch (error) {
       console.error('Code execution error:', error);
@@ -246,29 +327,138 @@ wss.on('connection', (ws) => {
     }
   }
 
+  // Handle duel completion from frontend (client-side Judge0 execution)
+  async function handleDuelComplete(ws, data) {
+    let duelId = ws._currentDuelId || currentDuelId;
+    
+    // Fallback: Search for user's active duel if not tracked on ws object
+    if (!duelId && userId) {
+      const duel = Array.from(activeDuels.values()).find(d => 
+        d.participants.some(p => p.userId === userId)
+      );
+      if (duel) {
+        duelId = duel.id;
+        ws._currentDuelId = duelId; // Store it for next time
+        console.log(`🔧 Recovered duel ID ${duelId} for user ${userId}`);
+      }
+    }
+    
+    if (!duelId) {
+      console.log(`❌ handleDuelComplete: User ${userId} not in a duel (no currentDuelId)`);
+      ws.send(JSON.stringify({ type: 'ERROR', message: 'Not in a duel' }));
+      return;
+    }
+
+    const duel = activeDuels.get(duelId);
+    if (!duel) {
+      console.log(`❌ handleDuelComplete: Duel ${duelId} not found in activeDuels`);
+      ws.send(JSON.stringify({ type: 'ERROR', message: 'Duel not found' }));
+      return;
+    }
+
+    const { score, completedAt } = data;
+
+    try {
+      // Update participant completion status
+      const participant = duel.participants.find(p => p.userId === userId);
+      if (participant && !participant.completedAt) {
+        participant.completedAt = completedAt || Date.now();
+        participant.finalScore = score || 0;
+
+        console.log(`✅ User ${userId} (${participant.nickname}) completed duel with score ${score}`);
+        console.log('Participants status:', duel.participants.map(p => ({
+          userId: p.userId,
+          nickname: p.nickname,
+          completed: !!p.completedAt,
+          score: p.finalScore || 0
+        })));
+
+        // Check if both participants have completed
+        const allComplete = duel.participants.every(p => p.completedAt);
+        console.log(`All complete check: ${allComplete} (${duel.participants.filter(p => p.completedAt).length}/${duel.participants.length})`);
+        
+        if (allComplete) {
+          console.log('🎉 Both participants completed. Ending duel...');
+          await completeDuel(duelId);
+        } else {
+          // Notify opponent that this user completed
+          console.log('📢 Notifying opponent of completion...');
+          broadcastToDuel(duelId, {
+            type: 'OPPONENT_COMPLETED',
+            userId,
+            nickname: participant.nickname,
+            time: participant.completedAt - duel.startedAt,
+            score: participant.finalScore
+          }, userId); // Exclude sender
+        }
+      } else if (participant && participant.completedAt) {
+        console.log(`⚠️ User ${userId} already completed. Ignoring duplicate completion.`);
+      } else {
+        console.log(`❌ Participant not found for userId: ${userId}`);
+      }
+
+    } catch (error) {
+      console.error('Error handling duel completion:', error);
+      ws.send(JSON.stringify({
+        type: 'ERROR',
+        message: 'Failed to process completion',
+        details: error.message
+      }));
+    }
+  }
+
   // Leave active duel
   async function handleLeaveDuel(ws, data) {
-    if (currentDuelId) {
-      await forfeitDuel(currentDuelId, userId);
+    let duelId = ws._currentDuelId || currentDuelId;
+    
+    // Fallback: Search for user's active duel if not tracked on ws object
+    if (!duelId && userId) {
+      const duel = Array.from(activeDuels.values()).find(d => 
+        d.participants.some(p => p.userId === userId)
+      );
+      if (duel) {
+        duelId = duel.id;
+        console.log(`🔧 Recovered duel ID ${duelId} for user ${userId}`);
+      }
+    }
+    
+    if (duelId) {
+      await forfeitDuel(duelId, userId);
       currentDuelId = null;
+      ws._currentDuelId = null;
     }
   }
 
   // Chat message
   function handleChatMessage(ws, data) {
-    if (!currentDuelId) return;
+    let duelId = ws._currentDuelId || currentDuelId;
+    
+    // Fallback: Search for user's active duel if not tracked on ws object
+    if (!duelId && userId) {
+      const duel = Array.from(activeDuels.values()).find(d => 
+        d.participants.some(p => p.userId === userId)
+      );
+      if (duel) {
+        duelId = duel.id;
+        ws._currentDuelId = duelId; // Store it for next time
+        console.log(`🔧 Recovered duel ID ${duelId} for user ${userId}`);
+      }
+    }
+    
+    if (!duelId) return;
 
     const { message } = data;
-    const duel = activeDuels.get(currentDuelId);
+    const duel = activeDuels.get(duelId);
     
     if (duel) {
-      broadcastToDuel(currentDuelId, {
+      // Broadcast to opponent only (sender shows message immediately on frontend)
+      broadcastToDuel(duelId, {
         type: 'CHAT_MESSAGE',
         userId,
         nickname: duel.participants.find(p => p.userId === userId)?.nickname,
         message,
         timestamp: Date.now()
-      }, userId); // exclude sender
+      }, userId); // Exclude sender since they already added it locally
     }
   }
 });
@@ -403,6 +593,12 @@ async function createDuel(player1, player2) {
 
   player1.ws.send(JSON.stringify(msg1));
   player2.ws.send(JSON.stringify(msg2));
+
+  // Set currentDuelId for both players' WebSocket connections
+  // This needs to be done through a Map since we can't access the closure variables directly
+  // We'll store it in a way that can be accessed by the message handlers
+  player1.ws._currentDuelId = duelId;
+  player2.ws._currentDuelId = duelId;
 
   console.log(`Duel created: ${duelId} between ${player1.nickname} and ${player2.nickname}`);
 
@@ -545,12 +741,17 @@ async function getRandomProblem(difficulty, language) {
 // Complete a duel and calculate results
 async function completeDuel(duelId) {
   const duel = activeDuels.get(duelId);
-  if (!duel) return;
+  if (!duel) {
+    console.log(`❌ completeDuel: Duel ${duelId} not found`);
+    return;
+  }
 
+  console.log(`🏁 Completing duel ${duelId}...`);
   duel.endedAt = Date.now();
 
   // Determine winner
   const [p1, p2] = duel.participants;
+  console.log(`Participants: P1(${p1.nickname}, score: ${p1.finalScore}, completed: ${!!p1.completedAt}), P2(${p2.nickname}, score: ${p2.finalScore}, completed: ${!!p2.completedAt})`);
   
   let winner = null;
   if (p1.completedAt && p2.completedAt) {
@@ -604,6 +805,7 @@ async function completeDuel(duelId) {
   }
 
   // Broadcast results
+  console.log(`📡 Broadcasting DUEL_END. Winner: ${winner}`);
   broadcastToDuel(duelId, {
     type: 'DUEL_END',
     winner,
@@ -688,14 +890,25 @@ async function awardXP(userId, xp, source) {
 // Broadcast message to all participants in a duel
 function broadcastToDuel(duelId, message, excludeUserId = null) {
   const duel = activeDuels.get(duelId);
-  if (!duel) return;
+  if (!duel) {
+    console.log(`⚠️ broadcastToDuel: Duel ${duelId} not found`);
+    return;
+  }
+
+  console.log(`📡 Broadcasting ${message.type} to duel ${duelId}`, excludeUserId ? `(excluding ${excludeUserId})` : '');
 
   for (const participant of duel.participants) {
-    if (excludeUserId && participant.userId === excludeUserId) continue;
+    if (excludeUserId && participant.userId === excludeUserId) {
+      console.log(`  ⏭️ Skipping ${participant.userId} (excluded)`);
+      continue;
+    }
     
     const ws = connectedClients.get(participant.userId);
     if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log(`  ✅ Sent to ${participant.userId} (${participant.nickname})`);
       ws.send(JSON.stringify(message));
+    } else {
+      console.log(`  ❌ Failed to send to ${participant.userId} (${participant.nickname}) - WebSocket not open`);
     }
   }
 }

@@ -9,7 +9,11 @@
     "dev": "nodemon server.js",
     "dev:duel": "nodemon duel-server.js"
   },
-  "keywords": ["websocket", "realtime", "code-duel"],
+  "keywords": [
+    "websocket",
+    "realtime",
+    "code-duel"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
@@ -18,6 +22,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "helmet": "^8.1.0",
     "ws": "^8.14.2"
   },
   "devDependencies": {

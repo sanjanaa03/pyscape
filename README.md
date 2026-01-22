@@ -70,6 +70,12 @@ The ML Sandbox provides a comprehensive code execution environment supporting mu
 - **Client-side (JavaScript)**: Runs directly in browser sandbox for immediate feedback
 - **Server-side (Python, Java, C, C++)**: Powered by Judge0 CE API for secure, scalable execution
 
+## Implementation
+### Current Progress
+https://github.com/user-attachments/assets/d4dd158a-8d76-437a-abfe-e32dfc24f881
+### Code duel 
+https://github.com/user-attachments/assets/2003e487-d3d9-4d20-837f-49a644a440c3
+
 ## Getting Started
 
 ### Prerequisites
