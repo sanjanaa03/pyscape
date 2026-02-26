@@ -14,6 +14,8 @@ const moduleData = {
           { id: 1, title: "Welcome!" },
           { id: 2, title: "Print" },
           { id: 3, title: "Using Print()" },
+          { id: 4, title: "Comment Lines" },
+
         ],
       },
       {
@@ -23,6 +25,7 @@ const moduleData = {
         levels: [
           { id: 1, title: "Declaring Variables" },
           { id: 2, title: "Data Type Basics" },
+          { id: 3, title: "Casting in python" },
         ],
       },
       {
@@ -34,6 +37,20 @@ const moduleData = {
           { id: 2, title: "Loops" },
         ],
       },
+      {
+  id: 4,
+  title: "Playing with Strings",
+  description: "Getting started with strings and essential string operations in Python.",
+  levels: [
+    { id: 1, title: "Introduction to Strings" },
+    { id: 2, title: "String Slicing" },
+    { id: 3, title: "String Modification & Concatenation" },
+    { id: 4, title: "String Formatting" },
+    { id: 5, title: "Common String Methods" },
+  ],
+},
+
+      
     ],
   },
   2: {
