@@ -8,5 +8,6 @@ console.log('Supabase URL:', supabaseUrl);
 console.log('Supabase ANON Key exists:', Boolean(supabaseAnonKey));
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+//export const supabase = null;
 
 export default supabase;
